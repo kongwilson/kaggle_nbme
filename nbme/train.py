@@ -60,7 +60,7 @@ class CFG:
 	debug = True
 	apex = True
 	print_freq = 100
-	num_workers = 4
+	num_workers = 0
 	model = "microsoft/deberta-base"
 	scheduler = 'cosine'  # ['linear', 'cosine']
 	batch_scheduler = True
@@ -72,7 +72,7 @@ class CFG:
 	min_lr = 1e-6
 	eps = 1e-6
 	betas = (0.9, 0.999)
-	batch_size = 12
+	batch_size = 4
 	fc_dropout = 0.2
 	max_len = 512
 	weight_decay = 0.01
