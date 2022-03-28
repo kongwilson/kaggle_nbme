@@ -57,7 +57,7 @@ class CFG:
 	wandb = False
 	competition = 'NBME'
 	_wandb_kernel = 'nakama'
-	debug = True
+	debug = False
 	apex = True
 	print_freq = 100
 	num_workers = 0
@@ -72,10 +72,10 @@ class CFG:
 	min_lr = 1e-6
 	eps = 1e-6
 	betas = (0.9, 0.999)
-	batch_size = 4
+	batch_size = 2
 	fc_dropout = 0.2
 	max_len = 512
-	weight_decay = 0.01
+	weight_decay = 0.01  # WKNOTE: the regularization parameter (usually the L2 norm of the weights)
 	gradient_accumulation_steps = 1
 	max_grad_norm = 1000
 	seed = 42
@@ -91,10 +91,10 @@ if CFG.debug:
 
 def micro_f1(preds, truths):
 	"""
-    Micro f1 on binary arrays.
-    :param preds:   (list of lists of ints): Predictions.
-    :param truths:  (list of lists of ints): Ground truths.
-    :return:        float: f1 score.
+	Micro f1 on binary arrays.
+	:param preds:   (list of ndarray of ints): Predictions.
+	:param truths:  (list of ndarray of ints): Ground truths.
+	:return:        float: f1 score.
     """
 	# Micro : aggregating over all instances
 	preds = np.concatenate(preds)
@@ -157,6 +157,7 @@ def create_labels_for_scoring(df):
 
 
 def get_char_probs(texts, predictions, tokenizer):
+	# WKNOTE: from tokens feature matching to character feature matching
 	results = [np.zeros(len(t)) for t in texts]
 	for i, (text, prediction) in enumerate(zip(texts, predictions)):
 		encoded = tokenizer(
@@ -227,12 +228,14 @@ seed_everything(seed=42)
 # Data Loading
 # ====================================================
 train = pd.read_csv(TRAIN_PATH)
+# convert the column dtype from str to object (list of strings)
 train['annotation'] = train['annotation'].apply(ast.literal_eval)
 train['location'] = train['location'].apply(ast.literal_eval)
 features = pd.read_csv(FEATURE_PATH)
 
 
 def preprocess_features(features):
+	# turn 'Last-Pap-smear-I-year-ago' to 'Last-Pap-smear-1-year-ago
 	features.loc[27, 'feature_text'] = "Last-Pap-smear-1-year-ago"
 	return features
 
@@ -423,6 +426,7 @@ CFG.tokenizer = tokenizer
 # ====================================================
 for text_col in ['pn_history']:
 	pn_history_lengths = []
+	# WKNOTE: the usage of the tqdm wrapper from tqdm.auto, which wrap a collection with tqdm progress tracking
 	tk0 = tqdm(patient_notes[text_col].fillna("").values, total=len(patient_notes))
 	for text in tk0:
 		length = len(tokenizer(text, add_special_tokens=False)['input_ids'])
@@ -445,6 +449,10 @@ LOGGER.info(f"max_len: {CFG.max_len}")
 # ====================================================
 # Dataset
 # ====================================================
+
+# WKNOTE: the preproccessing of preparing model INPUTS and LABELS
+# WKNOTE: an input is a [SEP] concatenated text, with the first part being the pn_history,
+#   and the second part being the feature text
 def prepare_input(cfg, text, feature_text):
 	inputs = cfg.tokenizer(
 		text, feature_text,
@@ -457,6 +465,7 @@ def prepare_input(cfg, text, feature_text):
 	return inputs
 
 
+# WKNOTE: a label is a 1-d tensor of `max_len`, with the label texts being 1, others being 0, and [pad] being -1
 def create_label(cfg, text, annotation_length, location_list):
 	encoded = cfg.tokenizer(
 		text,
@@ -470,10 +479,11 @@ def create_label(cfg, text, annotation_length, location_list):
 	label[ignore_idxes] = -1
 	if annotation_length != 0:
 		for location in location_list:
-			for loc in [s.split() for s in location.split(';')]:
+			for loc in [s.split() for s in location.split(';')]:  # WKNOTE: handling the ';' in the location labels
 				start_idx = -1
 				end_idx = -1
 				start, end = int(loc[0]), int(loc[1])
+				# WKNOTE: from the text locations to token locations
 				for idx in range(len(offset_mapping)):
 					if (start_idx == -1) & (start < offset_mapping[idx][0]):
 						start_idx = idx - 1
@@ -543,6 +553,8 @@ class CustomModel(nn.Module):
 			module.weight.data.fill_(1.0)
 
 	def feature(self, inputs):
+		# WKNOTE: https://huggingface.co/transformers/v4.7.0/model_doc/deberta.html
+		#   The bare DeBERTa Model transformer outputting raw hidden-states without any specific head on top
 		outputs = self.model(**inputs)
 		last_hidden_states = outputs[0]
 		return last_hidden_states
@@ -600,10 +612,15 @@ def train_fn(fold, train_loader, model, criterion, optimizer, epoch, scheduler, 
 			inputs[k] = v.to(device)
 		labels = labels.to(device)
 		batch_size = labels.size(0)
+		# WKNOTE: https://pytorch.org/docs/stable/amp.html#torch.autocast
+		#   Instances of autocast serve as context managers or decorators that allow regions
+		#   of your script to run in mixed precision.
+		#   In these regions, ops run in an op-specific dtype chosen by autocast to improve performance while
+		#   maintaining accuracy.
 		with torch.cuda.amp.autocast(enabled=CFG.apex):
 			y_preds = model(inputs)
 		loss = criterion(y_preds.view(-1, 1), labels.view(-1, 1))
-		loss = torch.masked_select(loss, labels.view(-1, 1) != -1).mean()
+		loss = torch.masked_select(loss, labels.view(-1, 1) != -1).mean()  # WKNOTE: only eval the loss for non-padding
 		if CFG.gradient_accumulation_steps > 1:
 			loss = loss / CFG.gradient_accumulation_steps
 		losses.update(loss.item(), batch_size)
@@ -718,7 +735,7 @@ def train_loop(folds, fold):
 	model.to(device)
 
 	def get_optimizer_params(model, encoder_lr, decoder_lr, weight_decay=0.0):
-		param_optimizer = list(model.named_parameters())
+		# param_optimizer = list(model.named_parameters())
 		no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
 		optimizer_parameters = [
 			{'params': [p for n, p in model.model.named_parameters() if not any(nd in n for nd in no_decay)],
