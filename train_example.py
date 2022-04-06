@@ -61,7 +61,7 @@ class CFG:
 	apex = True
 	print_freq = 100
 	num_workers = 0
-	model = "microsoft/deberta-base"
+	model = "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext"
 	scheduler = 'cosine'  # ['linear', 'cosine']
 	batch_scheduler = True
 	num_cycles = 0.5
@@ -197,7 +197,7 @@ def get_score(y_true, y_pred):
 	return score
 
 
-def get_logger(filename=OUTPUT_DIR + 'train'):
+def get_logger(filename=MODEL_STORE + 'train'):
 	from logging import getLogger, INFO, StreamHandler, FileHandler, Formatter
 	logger = getLogger(__name__)
 	logger.setLevel(INFO)
@@ -418,7 +418,7 @@ if CFG.debug:
 # tokenizer
 # ====================================================
 tokenizer = AutoTokenizer.from_pretrained(CFG.model)
-tokenizer.save_pretrained(OUTPUT_DIR + 'tokenizer/')
+tokenizer.save_pretrained(MODEL_STORE + 'tokenizer/')
 CFG.tokenizer = tokenizer
 
 # ====================================================
@@ -528,11 +528,11 @@ class CustomModel(nn.Module):
 		super().__init__()
 		self.cfg = cfg
 		if config_path is None:
-			self.config = AutoConfig.from_pretrained(cfg.model, output_hidden_states=True)
+			self.config = AutoConfig.from_pretrained(cfg.hugging_face_model_name, output_hidden_states=True)
 		else:
 			self.config = torch.load(config_path)
 		if pretrained:
-			self.model = AutoModel.from_pretrained(cfg.model, config=self.config)
+			self.model = AutoModel.from_pretrained(cfg.hugging_face_model_name, config=self.config)
 		else:
 			self.model = AutoModel(self.config)
 		self.fc_dropout = nn.Dropout(cfg.fc_dropout)
@@ -598,7 +598,7 @@ def timeSince(since, percent):
 	s = now - since
 	es = s / (percent)
 	rs = es - s
-	return '%s (remain %s)' % (asMinutes(s), asMinutes(rs))
+	return '%s (remain %s)' % (as_minutes(s), as_minutes(rs))
 
 
 def train_fn(fold, train_loader, model, criterion, optimizer, epoch, scheduler, device):
@@ -642,7 +642,7 @@ def train_fn(fold, train_loader, model, criterion, optimizer, epoch, scheduler, 
 				'Grad: {grad_norm:.4f}  '
 				'LR: {lr:.8f}  '.format(
 					epoch + 1, step, len(train_loader),
-					remain=timeSince(start, float(step + 1) / len(train_loader)),
+					remain=time_since(start, float(step + 1) / len(train_loader)),
 					loss=losses,
 					grad_norm=grad_norm,
 					lr=scheduler.get_lr()[0]))
@@ -679,7 +679,7 @@ def valid_fn(valid_loader, model, criterion, device):
 				'Loss: {loss.val:.4f}({loss.avg:.4f}) '.format(
 					step, len(valid_loader),
 					loss=losses,
-					remain=timeSince(start, float(step + 1) / len(valid_loader))))
+					remain=time_since(start, float(step + 1) / len(valid_loader))))
 	predictions = np.concatenate(preds)
 	return losses.avg, predictions
 
@@ -731,16 +731,16 @@ def train_loop(folds, fold):
 	# model & optimizer
 	# ====================================================
 	model = CustomModel(CFG, config_path=None, pretrained=True)
-	torch.save(model.config, OUTPUT_DIR + 'config.pth')
-	model.to(device)
+	torch.save(model.config, MODEL_STORE + 'config.pth')
+	model.to(DEVICE)
 
 	def get_optimizer_params(model, encoder_lr, decoder_lr, weight_decay=0.0):
 		# param_optimizer = list(model.named_parameters())
 		no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
 		optimizer_parameters = [
-			{'params': [p for n, p in model.model.named_parameters() if not any(nd in n for nd in no_decay)],
+			{'params': [p for n, p in model.hugging_face_model_name.named_parameters() if not any(nd in n for nd in no_decay)],
 				'lr': encoder_lr, 'weight_decay': weight_decay},
-			{'params': [p for n, p in model.model.named_parameters() if any(nd in n for nd in no_decay)],
+			{'params': [p for n, p in model.hugging_face_model_name.named_parameters() if any(nd in n for nd in no_decay)],
 				'lr': encoder_lr, 'weight_decay': 0.0},
 			{'params': [p for n, p in model.named_parameters() if "model" not in n],
 				'lr': decoder_lr, 'weight_decay': 0.0}
@@ -784,10 +784,10 @@ def train_loop(folds, fold):
 		start_time = time.time()
 
 		# train
-		avg_loss = train_fn(fold, train_loader, model, criterion, optimizer, epoch, scheduler, device)
+		avg_loss = train_fn(fold, train_loader, model, criterion, optimizer, epoch, scheduler, DEVICE)
 
 		# eval
-		avg_val_loss, predictions = valid_fn(valid_loader, model, criterion, device)
+		avg_val_loss, predictions = valid_fn(valid_loader, model, criterion, DEVICE)
 		predictions = predictions.reshape((len(valid_folds), CFG.max_len))
 
 		# scoring
@@ -814,10 +814,10 @@ def train_loop(folds, fold):
 			torch.save({
 				'model': model.state_dict(),
 				'predictions': predictions},
-				OUTPUT_DIR + f"{CFG.model.replace('/', '-')}_fold{fold}_best.pth")
+				MODEL_STORE + f"{CFG.hugging_face_model_name.replace('/', '-')}_fold{fold}_best.pth")
 
 	predictions = torch.load(
-		OUTPUT_DIR + f"{CFG.model.replace('/', '-')}_fold{fold}_best.pth",
+		MODEL_STORE + f"{CFG.hugging_face_model_name.replace('/', '-')}_fold{fold}_best.pth",
 		map_location=torch.device('cpu'))['predictions']
 	valid_folds[[i for i in range(CFG.max_len)]] = predictions
 
@@ -850,7 +850,7 @@ if __name__ == '__main__':
 		oof_df = oof_df.reset_index(drop=True)
 		LOGGER.info(f"========== CV ==========")
 		get_result(oof_df)
-		oof_df.to_pickle(OUTPUT_DIR + 'oof_df.pkl')
+		oof_df.to_pickle(MODEL_STORE + 'oof_df.pkl')
 
 	if CFG.wandb:
 		wandb.finish()

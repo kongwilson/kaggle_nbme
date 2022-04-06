@@ -8,6 +8,9 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 
 
+# WKNOTE: the preproccessing of preparing model INPUTS and LABELS
+# WKNOTE: an input is a [SEP] concatenated text, with the first part being the pn_history,
+#   and the second part being the feature text
 def prepare_input(tokenizer, text, feature_text, max_len):
 	inputs = tokenizer(
 		text, feature_text,

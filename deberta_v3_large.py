@@ -333,11 +333,11 @@ class ScoringModel(nn.Module):
         self.cfg = cfg
 
         if config_path is None:
-            self.config = AutoConfig.from_pretrained(cfg.model, output_hidden_states=True)
+            self.config = AutoConfig.from_pretrained(cfg.hugging_face_model_name, output_hidden_states=True)
         else:
             self.config = torch.load(config_path)
         if pretrained:
-            self.model = AutoModel.from_pretrained(cfg.model, config=self.config)
+            self.model = AutoModel.from_pretrained(cfg.hugging_face_model_name, config=self.config)
         else:
             self.model = AutoModel.from_config(self.config)
         self.fc_dropout = nn.Dropout(cfg.fc_dropout)
