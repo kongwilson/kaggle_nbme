@@ -45,14 +45,14 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # WK: the global configuration var
 class CFG:
-	wandb = True
+	wandb = False
 	competition = 'NBME'
 	_wandb_kernel = 'nakama'
 	debug = True
 	apex = True
 	print_freq = 100
 	num_workers = 0
-	hugging_face_model_name = "microsoft/deberta-base"  # WKNOTE: hugging face model name
+	hugging_face_model_name = "roberta-large"  # WKNOTE: hugging face model name
 	scheduler = 'cosine'  # ['linear', 'cosine']
 	batch_scheduler = True
 	num_cycles = 0.5
