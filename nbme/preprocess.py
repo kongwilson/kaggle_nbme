@@ -3,18 +3,13 @@ DESCRIPTION
 
 Copyright (C) Weicong Kong, 30/03/2022
 """
-import ast
-import os.path
 
-import pandas as pd
 from sklearn.model_selection import GroupKFold
-from tqdm.auto import tqdm
 from transformers import AutoTokenizer
 
 from nbme.utils import *
 
-
-seed_everything(seed=42)
+seed_everything(seed=CFG.seed)
 LOGGER = get_logger(CFG.hugging_face_model_name)
 
 
@@ -171,69 +166,80 @@ def preprocess_annotation(df):
 # ====================================================
 # Data Loading
 # ====================================================
-train = pd.read_csv(TRAIN_PATH)
-# convert the column dtype from str to object (list of strings)
-train = preprocess_annotation(train)
-
-features = pd.read_csv(FEATURE_PATH)
-features = preprocess_features(features)
-
-patient_notes = pd.read_csv(PATIENT_NOTES_PATH)
-
-train = train.merge(features, on=['feature_num', 'case_num'], how='left')
-train = train.merge(patient_notes, on=['pn_num', 'case_num'], how='left')
-
-train = correct_annotation_in_train_data(train)
-
-train['annotation_length'] = train['annotation'].apply(len)
-
-# ====================================================
-# CV split
-# ====================================================
-train_folds_path = os.path.join(DATA_ROOT, 'train_folds.csv')
-if os.path.exists(train_folds_path):
-	train = pd.read_csv(train_folds_path)
+def load_and_prepare_training_data():
+	train = pd.read_csv(TRAIN_PATH)
+	# convert the column dtype from str to object (list of strings)
 	train = preprocess_annotation(train)
-else:
-	Fold = GroupKFold(n_splits=CFG.n_fold)
-	groups = train['pn_num'].values
-	for n, (train_index, val_index) in enumerate(Fold.split(train, train['location'], groups)):
-		train.loc[val_index, 'fold'] = int(n)
-	train['fold'] = train['fold'].astype(int)
-	print(train.groupby('fold').size())
-	train.to_csv(train_folds_path)
 
+	features = pd.read_csv(FEATURE_PATH)
+	features = preprocess_features(features)
 
-if CFG.debug:
-	print(train.groupby('fold').size())
-	train = train.sample(n=1000, random_state=0).reset_index(drop=True)
-	print(train.groupby('fold').size())
+	patient_notes = pd.read_csv(PATIENT_NOTES_PATH)
 
+	train = train.merge(features, on=['feature_num', 'case_num'], how='left')
+	train = train.merge(patient_notes, on=['pn_num', 'case_num'], how='left')
+
+	train = correct_annotation_in_train_data(train)
+
+	train['annotation_length'] = train['annotation'].apply(len)
+
+	# ====================================================
+	# CV split
+	# ====================================================
+	train_folds_path = os.path.join(DATA_ROOT, 'train_folds.csv')
+	if os.path.exists(train_folds_path):
+		train = pd.read_csv(train_folds_path)
+		train = preprocess_annotation(train)
+	else:
+		Fold = GroupKFold(n_splits=CFG.n_fold)
+		groups = train['pn_num'].values
+		for n, (train_index, val_index) in enumerate(Fold.split(train, train['location'], groups)):
+			train.loc[val_index, 'fold'] = int(n)
+		train['fold'] = train['fold'].astype(int)
+		print(train.groupby('fold').size())
+		train.to_csv(train_folds_path)
+
+	if CFG.debug:
+		print(train.groupby('fold').size())
+		train = train.sample(n=1000, random_state=0).reset_index(drop=True)
+		print(train.groupby('fold').size())
+	return train
 
 
 # ====================================================
 # tokenizer
 # ====================================================
-tokenizer = AutoTokenizer.from_pretrained(CFG.hugging_face_model_name)
-tokenizer.save_pretrained(MODEL_STORE + 'tokenizer/')
+def load_tokenizer():
+	tokenizer = AutoTokenizer.from_pretrained(CFG.hugging_face_model_name)
+	tokenizer.save_pretrained(MODEL_STORE + 'tokenizer/')
+	CFG.tokenizer = tokenizer
 
 # ====================================================
 # Define max_len
 # ====================================================
-pn_history_lengths = []
-pn_his_col = 'pn_history'
-# WKNOTE: the usage of the tqdm wrapper from tqdm.auto, which wrap a collection with tqdm progress tracking
-pn_collections = tqdm(patient_notes[pn_his_col].fillna("").values, total=len(patient_notes))
-for text in pn_collections:
-	length = len(tokenizer(text, add_special_tokens=False)['input_ids'])
-	pn_history_lengths.append(length)
-LOGGER.info(f'{pn_his_col} max(lengths): {max(pn_history_lengths)}')
+def analyse_the_max_len_from_the_training_data():
+	tokenizer = CFG.tokenizer
+	patient_notes = pd.read_csv(PATIENT_NOTES_PATH)
+	features = pd.read_csv(FEATURE_PATH)
 
-features_lengths = []
-feature_col = 'feature_text'
-feature_collections = tqdm(features[feature_col].fillna("").values, total=len(features))
-for text in feature_collections:
-	length = len(tokenizer(text, add_special_tokens=False)['input_ids'])
-	features_lengths.append(length)
-LOGGER.info(f'{feature_col} max(lengths): {max(features_lengths)}')
+	pn_history_lengths = []
+	pn_his_col = 'pn_history'
+	# WKNOTE: the usage of the tqdm wrapper from tqdm.auto, which wrap a collection with tqdm progress tracking
+	pn_collections = tqdm(patient_notes[pn_his_col].fillna("").values, total=len(patient_notes))
+	for text in pn_collections:
+		length = len(tokenizer(text, add_special_tokens=False)['input_ids'])
+		pn_history_lengths.append(length)
+	LOGGER.info(f'{pn_his_col} max(lengths): {max(pn_history_lengths)}')
+
+	features_lengths = []
+	feature_col = 'feature_text'
+	feature_collections = tqdm(features[feature_col].fillna("").values, total=len(features))
+	for text in feature_collections:
+		length = len(tokenizer(text, add_special_tokens=False)['input_ids'])
+		features_lengths.append(length)
+	LOGGER.info(f'{feature_col} max(lengths): {max(features_lengths)}')
+
+	# WKNOTE: update the max length setting for the training data using the corresponding backbone hugging face model
+	CFG.max_len = max(pn_history_lengths) + max(features_lengths) + 3  # cls & sep & sep
+	LOGGER.info(f"max_len: {CFG.max_len}")
 

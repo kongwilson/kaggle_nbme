@@ -5,7 +5,9 @@ Copyright (C) Weicong Kong, 30/03/2022
 """
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
+
+# from nbme.utils import CFG
 
 
 # WKNOTE: the preproccessing of preparing model INPUTS and LABELS
@@ -55,8 +57,9 @@ def create_label(tokenizer, text, annotation_length, location_list, max_len):
 
 
 class TrainDataset(Dataset):
-	def __init__(self, tokenizer, df):
+	def __init__(self, tokenizer, df, max_len):
 		self.tokenizer = tokenizer
+		self.max_len = max_len
 		self.feature_texts = df['feature_text'].values
 		self.pn_historys = df['pn_history'].values
 		self.annotation_lengths = df['annotation_length'].values
@@ -69,10 +72,10 @@ class TrainDataset(Dataset):
 		inputs = prepare_input(
 			self.tokenizer,
 			self.pn_historys[item],
-			self.feature_texts[item])
+			self.feature_texts[item], self.max_len)
 		label = create_label(
 			self.tokenizer,
 			self.pn_historys[item],
 			self.annotation_lengths[item],
-			self.locations[item])
+			self.locations[item], self.max_len)
 		return inputs, label
