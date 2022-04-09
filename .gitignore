@@ -133,3 +133,5 @@ dmypy.json
 data
 nbme-score-clinical-patient-notes
 notes.md
+/model_store/
+/wandb/

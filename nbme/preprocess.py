@@ -3,6 +3,7 @@ DESCRIPTION
 
 Copyright (C) Weicong Kong, 30/03/2022
 """
+import os.path
 
 from sklearn.model_selection import GroupKFold
 from transformers import AutoTokenizer
@@ -211,7 +212,11 @@ def load_and_prepare_training_data():
 # ====================================================
 def load_tokenizer():
 	tokenizer = AutoTokenizer.from_pretrained(CFG.hugging_face_model_name)
-	tokenizer.save_pretrained(MODEL_STORE + 'tokenizer/')
+	tokenizer.save_pretrained(
+		os.path.join(MODEL_FOLDER),
+		replace_suspicious_characters_from_path_name_with_underscore(CFG.hugging_face_model_name),
+		'tokenizer'
+	)
 	CFG.tokenizer = tokenizer
 
 # ====================================================

@@ -18,6 +18,8 @@ from sklearn.metrics import f1_score
 from tqdm.auto import tqdm
 import itertools
 
+from dotenv import load_dotenv
+
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -28,6 +30,8 @@ from nbme.data_loader import TrainDataset
 from nbme.model import HuggingFaceBackedModel
 
 warnings.filterwarnings("ignore")
+
+load_dotenv()
 
 pd.set_option('display.max_rows', 500)
 pd.set_option('display.max_columns', 500)
@@ -41,8 +45,7 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # WK: the global configuration var
 class CFG:
-
-	wandb = False
+	wandb = True
 	competition = 'NBME'
 	_wandb_kernel = 'nakama'
 	debug = True
@@ -79,7 +82,6 @@ if CFG.debug:
 else:
 	CFG.train_folds = list(range(CFG.n_fold))
 
-
 # WK: need to download the kaggle data and store it in the following `DATA_ROOT` folder in the project
 
 DATA_ROOT = os.path.join('nbme-score-clinical-patient-notes')
@@ -102,6 +104,35 @@ MODEL_FOLDER = os.path.join(
 	MODEL_STORE, replace_suspicious_characters_from_path_name_with_underscore(CFG.hugging_face_model_name))
 if not os.path.exists(MODEL_FOLDER):
 	os.makedirs(MODEL_FOLDER, exist_ok=True)
+
+
+def class2dict(f):
+	return dict((name, getattr(f, name)) for name in dir(f) if not name.startswith('__'))
+
+# ====================================================
+# wandb
+# ====================================================
+if CFG.wandb:
+
+	import wandb
+
+	try:
+
+		wandb_api_key = os.getenv('WANDB_API_KEY')
+		wandb.login(key=wandb_api_key)
+		anony = None
+	except:
+		anony = "must"
+		print(
+			'wandb connection failed')
+
+	run = wandb.init(
+		project='NBME-Public',
+		name=CFG.hugging_face_model_name,
+		config=class2dict(CFG),
+		group=CFG.hugging_face_model_name,
+		job_type="train",
+		anonymous=anony)
 
 
 def micro_f1(preds, truths):

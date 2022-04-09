@@ -1,5 +1,9 @@
 # kaggle_nbme
 
+## Prerequisites
+
+- have `nbme-score-clinical-patient-notes` folder in the project directory holding the data downloaded from kaggle
+
 
 plan:
 
