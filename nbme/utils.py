@@ -464,6 +464,7 @@ def train_loop(folds, fold):
 	model = HuggingFaceBackedModel(CFG, config_path=None, pretrained=True)
 	# WKNOTE:save model configuration as `config.pth`
 	torch.save(model.config, os.path.join(MODEL_FOLDER, 'config.pth'))
+	model = nn.DataParallel(model)
 	model.to(DEVICE)
 
 	def get_optimizer_params(model, encoder_lr, decoder_lr, weight_decay=0.0):
