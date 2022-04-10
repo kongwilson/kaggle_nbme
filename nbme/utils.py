@@ -52,7 +52,7 @@ class CFG:
 	apex = True
 	print_freq = 100
 	num_workers = 0
-	hugging_face_model_name = "roberta-large"  # WKNOTE: hugging face model name
+	hugging_face_model_name = "microsoft/deberta-base"  # WKNOTE: hugging face model name
 	scheduler = 'cosine'  # ['linear', 'cosine']
 	batch_scheduler = True
 	num_cycles = 0.5
@@ -542,7 +542,7 @@ def train_loop(folds, fold):
 	torch.cuda.empty_cache()
 	gc.collect()
 
-	return valid_folds
+	return valid_folds, best_score
 
 
 def get_result(oof_df):

@@ -18,10 +18,13 @@ if __name__ == '__main__':
 		oof_df = pd.DataFrame()
 		for fold in range(CFG.n_fold):
 			if fold in CFG.train_folds:
-				_oof_df = train_loop(train, fold)
+				_oof_df, best_score = train_loop(train, fold)
 				oof_df = pd.concat([oof_df, _oof_df])
 				LOGGER.info(f"========== fold: {fold} result ==========")
 				get_result(_oof_df)
+				if best_score < 0.83:
+					# WK: since deberta-base can achieve 0.86 on avg, so if any model can't beat that, not shortlisted
+					break
 
 		oof_df = oof_df.reset_index(drop=True)
 		LOGGER.info(f"========== CV ==========")
