@@ -52,7 +52,7 @@ class CFG:
 	apex = True
 	print_freq = 100
 	num_workers = 0
-	hugging_face_model_name = "microsoft/deberta-base"  # WKNOTE: hugging face model name
+	hugging_face_model_name = "valhalla/distilbart-mnli-12-9"  # WKNOTE: hugging face model name
 	scheduler = 'cosine'  # ['linear', 'cosine']
 	batch_scheduler = True
 	num_cycles = 0.5
@@ -464,21 +464,31 @@ def train_loop(folds, fold):
 	model = HuggingFaceBackedModel(CFG, config_path=None, pretrained=True)
 	# WKNOTE:save model configuration as `config.pth`
 	torch.save(model.config, os.path.join(MODEL_FOLDER, 'config.pth'))
-	model = nn.DataParallel(model)
+	# model = nn.DataParallel(model)
 	model.to(DEVICE)
 
 	def get_optimizer_params(model, encoder_lr, decoder_lr, weight_decay=0.0):
 		# TODO: the purpose of this function should be reviewed. It may apply to deberta model only
 		# param_optimizer = list(model.named_parameters())
 		no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
-		optimizer_parameters = [
-			{'params': [p for n, p in model.module.model.named_parameters() if not any(nd in n for nd in no_decay)],
-				'lr': encoder_lr, 'weight_decay': weight_decay},
-			{'params': [p for n, p in model.module.model.named_parameters() if any(nd in n for nd in no_decay)],
-				'lr': encoder_lr, 'weight_decay': 0.0},
-			{'params': [p for n, p in model.module.named_parameters() if "model" not in n],
-				'lr': decoder_lr, 'weight_decay': 0.0}
-		]
+		if isinstance(model, nn.DataParallel):
+			optimizer_parameters = [
+				{'params': [p for n, p in model.module.model.named_parameters() if not any(nd in n for nd in no_decay)],
+					'lr': encoder_lr, 'weight_decay': weight_decay},
+				{'params': [p for n, p in model.module.model.named_parameters() if any(nd in n for nd in no_decay)],
+					'lr': encoder_lr, 'weight_decay': 0.0},
+				{'params': [p for n, p in model.module.named_parameters() if "model" not in n],
+					'lr': decoder_lr, 'weight_decay': 0.0}
+			]
+		else:
+			optimizer_parameters = [
+				{'params': [p for n, p in model.model.named_parameters() if not any(nd in n for nd in no_decay)],
+					'lr': encoder_lr, 'weight_decay': weight_decay},
+				{'params': [p for n, p in model.model.named_parameters() if any(nd in n for nd in no_decay)],
+					'lr': encoder_lr, 'weight_decay': 0.0},
+				{'params': [p for n, p in model.named_parameters() if "model" not in n],
+					'lr': decoder_lr, 'weight_decay': 0.0}
+			]
 		return optimizer_parameters
 
 	optimizer_parameters = get_optimizer_params(

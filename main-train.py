@@ -22,7 +22,7 @@ if __name__ == '__main__':
 				oof_df = pd.concat([oof_df, _oof_df])
 				LOGGER.info(f"========== fold: {fold} result ==========")
 				get_result(_oof_df)
-				if best_score < 0.83:
+				if best_score < 0.81:
 					# WK: since deberta-base can achieve 0.86 on avg, so if any model can't beat that, not shortlisted
 					break
 
