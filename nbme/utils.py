@@ -64,7 +64,7 @@ class CFG:
 	betas = (0.9, 0.999)
 	batch_size = 2
 	fc_dropout = 0.2
-	max_len = 512
+	max_len = 128
 	weight_decay = 0.01  # WKNOTE: the regularization parameter (usually the L2 norm of the weights)
 	gradient_accumulation_steps = 1
 	max_grad_norm = 1000

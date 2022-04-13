@@ -243,6 +243,8 @@ def analyse_the_max_len_from_the_training_data():
 	LOGGER.info(f'{feature_col} max(lengths): {max(features_lengths)}')
 
 	# WKNOTE: update the max length setting for the training data using the corresponding backbone hugging face model
-	CFG.max_len = max(pn_history_lengths) + max(features_lengths) + 3  # cls & sep & sep
+	train_data_max_len = max(pn_history_lengths) + max(features_lengths) + 3  # cls & sep & sep
+	if train_data_max_len < CFG.max_len:
+		CFG.max_len = train_data_max_len
 	LOGGER.info(f"max_len: {CFG.max_len}")
 

@@ -12,6 +12,9 @@ from nbme.model import HuggingFaceBackedModel
 LOGGER = get_logger(CFG.hugging_face_model_name)
 
 
+# TODO: handle CUDA out of memory by reducing the max_len of the model
+# TODO: further re-organise the code so that it can be easily transfer to a cloud env.
+
 if __name__ == '__main__':
 	train = load_and_prepare_training_data()
 	load_tokenizer()
