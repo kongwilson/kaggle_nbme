@@ -6,6 +6,7 @@ Copyright (C) Weicong Kong, 30/03/2022
 import torch
 from torch import nn
 from transformers import AutoConfig, AutoModel
+from nbme.utils import PRETRAINED_CACHE
 
 
 # ====================================================
@@ -16,11 +17,13 @@ class HuggingFaceBackedModel(nn.Module):
 		super().__init__()
 		self.cfg = cfg
 		if config_path is None:
-			self.config = AutoConfig.from_pretrained(cfg.hugging_face_model_name, output_hidden_states=True)
+			self.config = AutoConfig.from_pretrained(
+				cfg.hugging_face_model_name, output_hidden_states=True, cache_dir=PRETRAINED_CACHE)
 		else:
 			self.config = torch.load(config_path)
 		if pretrained:
-			self.model = AutoModel.from_pretrained(cfg.hugging_face_model_name, config=self.config)
+			self.model = AutoModel.from_pretrained(
+				cfg.hugging_face_model_name, config=self.config, cache_dir=PRETRAINED_CACHE)
 		else:
 			self.model = AutoModel(self.config)
 		self.fc_dropout = nn.Dropout(cfg.fc_dropout)

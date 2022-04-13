@@ -211,7 +211,7 @@ def load_and_prepare_training_data():
 # tokenizer
 # ====================================================
 def load_tokenizer():
-	tokenizer = AutoTokenizer.from_pretrained(CFG.hugging_face_model_name)
+	tokenizer = AutoTokenizer.from_pretrained(CFG.hugging_face_model_name, cache_dir=PRETRAINED_CACHE)
 	tokenizer.save_pretrained(
 		os.path.join(MODEL_FOLDER, 'tokenizer')
 	)

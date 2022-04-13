@@ -27,7 +27,6 @@ from torch.optim import AdamW
 import transformers
 from transformers import get_linear_schedule_with_warmup, get_cosine_schedule_with_warmup
 from nbme.data_loader import TrainDataset
-from nbme.model import HuggingFaceBackedModel
 
 warnings.filterwarnings("ignore")
 
@@ -52,7 +51,7 @@ class CFG:
 	apex = True
 	print_freq = 100
 	num_workers = 0
-	hugging_face_model_name = "valhalla/distilbart-mnli-12-9"  # WKNOTE: hugging face model name
+	hugging_face_model_name = "microsoft/deberta-large"  # WKNOTE: hugging face model name
 	scheduler = 'cosine'  # ['linear', 'cosine']
 	batch_scheduler = True
 	num_cycles = 0.5
@@ -92,8 +91,12 @@ FEATURE_PATH = os.path.join(DATA_ROOT, 'features.csv')
 PATIENT_NOTES_PATH = os.path.join(DATA_ROOT, 'patient_notes.csv')
 
 MODEL_STORE = os.path.join('model_store')
+PRETRAINED_CACHE = os.path.join('cache')
 if not os.path.exists(MODEL_STORE):
 	os.makedirs(MODEL_STORE, exist_ok=True)
+
+if not os.path.exists(PRETRAINED_CACHE):
+	os.makedirs(PRETRAINED_CACHE, exist_ok=True)
 
 
 def replace_suspicious_characters_from_path_name_with_underscore(name):
@@ -432,7 +435,7 @@ def get_scheduler(cfg, optimizer, num_train_steps):
 # ====================================================
 # train loop
 # ====================================================
-def train_loop(folds, fold):
+def train_loop(folds, fold, model_constructor):
 	logger = get_logger(CFG.hugging_face_model_name)
 	logger.info(f"========== fold: {fold} training ==========")
 
@@ -461,7 +464,7 @@ def train_loop(folds, fold):
 	# ====================================================
 	# model & optimizer
 	# ====================================================
-	model = HuggingFaceBackedModel(CFG, config_path=None, pretrained=True)
+	model = model_constructor(CFG, config_path=None, pretrained=True)
 	# WKNOTE:save model configuration as `config.pth`
 	torch.save(model.config, os.path.join(MODEL_FOLDER, 'config.pth'))
 	# model = nn.DataParallel(model)
