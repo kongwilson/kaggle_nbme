@@ -6,6 +6,7 @@ Copyright (C) Weicong Kong, 30/03/2022
 import torch
 from torch import nn
 from transformers import AutoConfig, AutoModel
+from transformers.models.deberta.tokenization_deberta_fast import DebertaTokenizerFast
 from nbme.utils import PRETRAINED_CACHE
 
 

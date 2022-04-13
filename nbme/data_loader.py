@@ -19,21 +19,36 @@ def prepare_input(tokenizer, text, feature_text, max_len):
 		add_special_tokens=True,
 		max_length=max_len,
 		padding="max_length",
-		return_offsets_mapping=False)
+		return_offsets_mapping=True,
+		return_overflowing_tokens=True,
+		truncation=True
+	)
 	for k, v in inputs.items():
-		inputs[k] = torch.tensor(v, dtype=torch.long)
+		if k == 'input_ids':
+			inputs[k] = torch.tensor(v, dtype=torch.long)
+		else:
+			inputs[k] = torch.tensor(v, dtype=torch.short)
 	return inputs
 
 
 # WKNOTE: a label is a 1-d tensor of `max_len`, with the label texts being 1, others being 0, and [pad] being -1
+#   if `max_len` is shorter than the text tokens, the text will be truncated into multiple pieces
 def create_label(tokenizer, text, annotation_length, location_list, max_len):
 	encoded = tokenizer(
 		text,
 		add_special_tokens=True,
 		max_length=max_len,
 		padding="max_length",
-		return_offsets_mapping=True)
+		return_offsets_mapping=True,
+		return_overflowing_tokens=True,
+		truncation=True
+	)
 	offset_mapping = encoded['offset_mapping']
+	# WKNOTE: encoded.sequence_ids(batch_index: int = 0) -
+	#   Return a list mapping the tokens to the id of their original sentences
+	#       - `None` for special tokens added around or between sequences
+	#       - `0` for tokens corresponding to words in the first sequence
+	#       - `1` for tokens corresponding to words in the second sequence when a pair of sequences was jointly encoded
 	ignore_idxes = np.where(np.array(encoded.sequence_ids()) != 0)[0]
 	label = np.zeros(len(offset_mapping))
 	label[ignore_idxes] = -1
